@@ -1,0 +1,101 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>新疆自驾地图规划</title>
+    <meta
+      name="description"
+      content="本地新疆自驾路线规划网页，展示自然/人文景点小圆点、路线、距离与驾驶时间。"
+    />
+    <link rel="stylesheet" href="./styles.css" />
+  </head>
+  <body>
+    <main class="app-shell">
+      <aside class="sidebar" aria-label="新疆自驾规划控制面板">
+        <header class="brand">
+          <p class="eyebrow">Xinjiang Road Trip</p>
+          <h1>新疆自驾地图规划</h1>
+          <p>
+            选择景点加入路线，配置 Google Maps API key 后可绘制真实驾车路线与时间；未配置时显示本地估算。
+          </p>
+        </header>
+
+        <section class="panel">
+          <div class="panel-title">
+            <h2>地图设置</h2>
+            <button class="icon-button" id="fitMapButton" type="button" title="回到新疆视图" aria-label="回到新疆视图">
+              ↺
+            </button>
+          </div>
+          <label class="field">
+            <span>Google Maps API Key</span>
+            <input id="apiKeyInput" type="password" autocomplete="off" placeholder="粘贴后自动本地保存" />
+          </label>
+          <div class="inline-actions">
+            <button id="loadMapButton" type="button">加载 Google 地图</button>
+            <button id="clearKeyButton" type="button" class="ghost">清除 Key</button>
+          </div>
+          <p class="hint" id="mapStatus">未加载 API key 时，可先使用景点列表和本地估算。</p>
+          <div class="legend" aria-label="地图标记图例">
+            <span><i class="dot nature"></i>自然景观</span>
+            <span><i class="dot culture"></i>人文景观</span>
+          </div>
+        </section>
+
+        <section class="panel">
+          <div class="panel-title">
+            <h2>经典路线</h2>
+            <span id="routeCount" class="count"></span>
+          </div>
+          <div id="presetRoutes" class="route-list"></div>
+        </section>
+
+        <section class="panel">
+          <div class="panel-title">
+            <h2>景点筛选</h2>
+            <span id="attractionCount" class="count"></span>
+          </div>
+          <div class="filters" id="filters"></div>
+          <label class="field compact">
+            <span>搜索景点</span>
+            <input id="searchInput" type="search" placeholder="例如：喀什、草原、湖泊" />
+          </label>
+          <div id="attractionList" class="attraction-list"></div>
+        </section>
+      </aside>
+
+      <section class="map-stage" aria-label="新疆地图与路线结果">
+        <div id="map" class="map">
+          <div class="map-fallback">
+            <strong>新疆地图待加载</strong>
+            <span>输入 Google Maps API key 后显示可交互地图、红色标记和驾车路线。</span>
+          </div>
+        </div>
+
+        <section class="trip-board" aria-label="当前路线">
+          <div class="trip-header">
+            <div>
+              <p class="eyebrow">Current Plan</p>
+              <h2>当前路线</h2>
+            </div>
+            <div class="trip-actions">
+              <button id="reverseRouteButton" type="button" class="ghost">反向</button>
+              <button id="clearRouteButton" type="button" class="ghost">清空</button>
+              <a id="openGoogleMaps" class="button-link disabled" target="_blank" rel="noreferrer">打开导航</a>
+            </div>
+          </div>
+          <div class="stats" id="routeStats">
+            <div><span>总里程</span><strong>-</strong></div>
+            <div><span>驾驶时间</span><strong>-</strong></div>
+            <div><span>途经点</span><strong>0</strong></div>
+          </div>
+          <ol id="selectedStops" class="selected-stops"></ol>
+          <div id="legList" class="leg-list"></div>
+        </section>
+      </section>
+    </main>
+
+    <script type="module" src="./app.js"></script>
+  </body>
+</html>
