@@ -137,7 +137,7 @@ export const sourceNotes = [
   "本地参考：南疆自驾路书.docx、伊犁环线自驾攻略-3.docx。",
   "线上参考：携程新疆景点热度/评分、Tripadvisor 旅行者排名、新疆文旅与政务景区名录、热门自驾攻略。",
   "0-10 分为综合推荐分：平台评分折算、评价数量/热度、景区等级、自驾路线价值共同加权。",
-  "页面内置距离为未调用 Google 路线服务时的估算值；配置 Google Maps API key 后以 Google DirectionsService 返回为准。",
+  "页面内置距离为未调用高德驾车规划时的估算值；配置高德 Key 和安全密钥后以高德路线服务返回为准。",
 ];
 
 function spot(id, name, region, category, type, lat, lng, stay, score, ratingBasis, summary) {

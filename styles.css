@@ -302,6 +302,34 @@ input:focus {
   background: #d63131;
 }
 
+.amap-dot {
+  width: 10px;
+  height: 10px;
+  display: block;
+  border: 2px solid #fff;
+  border-radius: 50%;
+  box-shadow: 0 2px 8px rgba(28, 36, 48, 0.32);
+}
+
+.amap-dot.nature {
+  background: #138a4f;
+}
+
+.amap-dot.culture {
+  background: #d63131;
+}
+
+.info-window {
+  max-width: 240px;
+  color: #1c2430;
+  line-height: 1.45;
+}
+
+.info-window p {
+  margin: 6px 0;
+  color: #556070;
+}
+
 .map-stage {
   position: relative;
   min-height: 100vh;

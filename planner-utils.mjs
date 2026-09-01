@@ -46,22 +46,26 @@ export function reorderStopIds(ids, fromIndex, toIndex) {
   return next;
 }
 
-export function buildGoogleMapsDirectionsUrl(stops) {
-  if (stops.length < 2) return "https://www.google.com/maps";
+export function buildAmapDirectionsUrl(stops) {
+  if (stops.length < 2) return "https://uri.amap.com";
 
-  const encodePoint = (stop) => encodeURIComponent(`${stop.lat},${stop.lng}`);
+  const encodePoint = (stop) => {
+    const point = toGcj02(stop);
+    return encodeURIComponent(`${point.lng},${point.lat},${stop.name}`);
+  };
   const origin = encodePoint(stops[0]);
   const destination = encodePoint(stops[stops.length - 1]);
-  const waypoints = stops.slice(1, -1).map(encodePoint).join("%7C");
+  const via = stops.slice(1, -1).map(encodePoint).join(";");
   const params = [
-    `api=1`,
-    `origin=${origin}`,
-    `destination=${destination}`,
-    waypoints ? `waypoints=${waypoints}` : "",
-    `travelmode=driving`,
+    `from=${origin}`,
+    `to=${destination}`,
+    via ? `via=${via}` : "",
+    `mode=car`,
+    `policy=1`,
+    `src=xinjiang-road-trip-planner`,
   ].filter(Boolean);
 
-  return `https://www.google.com/maps/dir/?${params.join("&")}`;
+  return `https://uri.amap.com/navigation/cascade?${params.join("&")}`;
 }
 
 export function getRedDotMarkerIcon(circlePath) {
@@ -110,6 +114,70 @@ export function splitStopsForDirections(stops, maxWaypoints = 8) {
     start = end;
   }
   return segments;
+}
+
+export function toGcj02(point) {
+  const lat = Number(point.lat);
+  const lng = Number(point.lng);
+  if (isOutsideChina(lat, lng)) return { lat, lng };
+
+  const dLat = transformLat(lng - 105, lat - 35);
+  const dLng = transformLng(lng - 105, lat - 35);
+  const radLat = (lat / 180) * Math.PI;
+  let magic = Math.sin(radLat);
+  magic = 1 - 0.006693421622965943 * magic * magic;
+  const sqrtMagic = Math.sqrt(magic);
+  const mgLat =
+    lat +
+    (dLat * 180) /
+      (((6378245 * (1 - 0.006693421622965943)) / (magic * sqrtMagic)) *
+        Math.PI);
+  const mgLng =
+    lng +
+    (dLng * 180) /
+      ((6378245 / sqrtMagic) * Math.cos(radLat) * Math.PI);
+  return {
+    lat: Number(mgLat.toFixed(6)),
+    lng: Number(mgLng.toFixed(6)),
+  };
+}
+
+function isOutsideChina(lat, lng) {
+  return lng < 72.004 || lng > 137.8347 || lat < 0.8293 || lat > 55.8271;
+}
+
+function transformLat(x, y) {
+  let ret =
+    -100 +
+    2 * x +
+    3 * y +
+    0.2 * y * y +
+    0.1 * x * y +
+    0.2 * Math.sqrt(Math.abs(x));
+  ret += ((20 * Math.sin(6 * x * Math.PI) + 20 * Math.sin(2 * x * Math.PI)) * 2) / 3;
+  ret += ((20 * Math.sin(y * Math.PI) + 40 * Math.sin((y / 3) * Math.PI)) * 2) / 3;
+  ret +=
+    ((160 * Math.sin((y / 12) * Math.PI) + 320 * Math.sin((y * Math.PI) / 30)) *
+      2) /
+    3;
+  return ret;
+}
+
+function transformLng(x, y) {
+  let ret =
+    300 +
+    x +
+    2 * y +
+    0.1 * x * x +
+    0.1 * x * y +
+    0.1 * Math.sqrt(Math.abs(x));
+  ret += ((20 * Math.sin(6 * x * Math.PI) + 20 * Math.sin(2 * x * Math.PI)) * 2) / 3;
+  ret += ((20 * Math.sin(x * Math.PI) + 40 * Math.sin((x / 3) * Math.PI)) * 2) / 3;
+  ret +=
+    ((150 * Math.sin((x / 12) * Math.PI) + 300 * Math.sin((x / 30) * Math.PI)) *
+      2) /
+    3;
+  return ret;
 }
 
 export function formatHours(hours) {

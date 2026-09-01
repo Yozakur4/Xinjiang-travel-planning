@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 import {
-  buildGoogleMapsDirectionsUrl,
+  buildAmapDirectionsUrl,
   createFixedRouteState,
   getCategoryMarkerIcon,
   getRedDotMarkerIcon,
@@ -9,6 +9,7 @@ import {
   reorderStopIds,
   splitStopsForDirections,
   toggleFixedRoute,
+  toGcj02,
 } from "../planner-utils.mjs";
 
 const stops = [
@@ -33,14 +34,14 @@ describe("planner utils", () => {
     assert.deepEqual(reorderStopIds(["a", "b", "c"], 2, 0), ["c", "a", "b"]);
   });
 
-  it("builds a Google Maps directions url with waypoints", () => {
-    const url = buildGoogleMapsDirectionsUrl(stops);
+  it("builds an AMap directions url with waypoints", () => {
+    const url = buildAmapDirectionsUrl(stops);
 
-    assert.match(url, /^https:\/\/www\.google\.com\/maps\/dir\/\?/);
-    assert.match(url, /origin=43\.8256%2C87\.6168/);
-    assert.match(url, /destination=48\.5791%2C87\.4304/);
-    assert.match(url, /waypoints=48\.7495%2C87\.0396/);
-    assert.match(url, /travelmode=driving/);
+    assert.match(url, /^https:\/\/uri\.amap\.com\/navigation\/cascade\?/);
+    assert.match(url, /from=/);
+    assert.match(url, /to=/);
+    assert.match(url, /via=/);
+    assert.match(url, /mode=car/);
   });
 
   it("uses a compact red dot marker icon", () => {
@@ -73,7 +74,7 @@ describe("planner utils", () => {
     });
   });
 
-  it("splits long routes into overlapping Google Directions segments", () => {
+  it("splits long routes into overlapping driving route segments", () => {
     const manyStops = Array.from({ length: 13 }, (_, index) => ({
       id: String(index),
       name: `Stop ${index}`,
@@ -88,5 +89,14 @@ describe("planner utils", () => {
         ["8", "9", "10", "11", "12"],
       ],
     );
+  });
+
+  it("converts WGS84 coordinates in China to GCJ-02 for AMap", () => {
+    const converted = toGcj02({ lat: 43.8256, lng: 87.6168 });
+
+    assert.notEqual(converted.lat, 43.8256);
+    assert.notEqual(converted.lng, 87.6168);
+    assert.ok(Math.abs(converted.lat - 43.827) < 0.03);
+    assert.ok(Math.abs(converted.lng - 87.62) < 0.03);
   });
 });

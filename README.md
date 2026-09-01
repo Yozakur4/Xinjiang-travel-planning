@@ -8,7 +8,7 @@
 - 自然景观使用绿色小点，人文景观使用红色小点。
 - 支持北疆、南疆、伊犁、东疆支线等固定路线。
 - 固定路线默认隐藏，点击“显示公路”后才显示。
-- 已配置 Google Maps API key 时，路线使用 Google 驾车导航路径绘制。
+- 已配置高德地图 Key 和安全密钥时，路线使用高德驾车规划路径绘制。
 - 未配置或路线服务不可用时，只保留本地距离/时间估算，不绘制点对点直线。
 - 当前路线保存在浏览器 `localStorage`。
 
@@ -24,17 +24,17 @@ python3 -m http.server 8080 --bind 127.0.0.1
 http://127.0.0.1:8080/index.html
 ```
 
-## Google Maps API Key
+## 高德地图 Key
 
-不要把 API key 写入仓库。页面会把你输入的 key 保存在当前浏览器的
-`localStorage` 中。
+不要把高德 Key 或安全密钥写入仓库。页面会把你输入的凭据保存在当前浏览器的
+`localStorage` 中，不会提交到 GitHub。
 
 为了显示真实公路路线，请确认 key 可使用：
 
-- Maps JavaScript API
-- 路线/导航相关服务，例如 Directions API
+- Web 端 JS API
+- 驾车路线规划
 
-建议给 key 设置 HTTP referrer 限制，例如：
+建议给 Key 设置 Web 端域名限制。本地测试可加入：
 
 ```text
 http://127.0.0.1:8080/*

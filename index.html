@@ -17,7 +17,7 @@
           <p class="eyebrow">Xinjiang Road Trip</p>
           <h1>新疆自驾地图规划</h1>
           <p>
-            选择景点加入路线，配置 Google Maps API key 后可绘制真实驾车路线与时间；未配置时显示本地估算。
+            选择景点加入路线，配置高德地图 Key 后可绘制真实驾车路线与时间；未配置时显示本地估算。
           </p>
         </header>
 
@@ -29,11 +29,15 @@
             </button>
           </div>
           <label class="field">
-            <span>Google Maps API Key</span>
-            <input id="apiKeyInput" type="password" autocomplete="off" placeholder="粘贴后自动本地保存" />
+            <span>高德地图 Key</span>
+            <input id="apiKeyInput" type="password" autocomplete="off" placeholder="Web JS API Key，本地保存" />
+          </label>
+          <label class="field compact">
+            <span>安全密钥 securityJsCode</span>
+            <input id="securityCodeInput" type="password" autocomplete="off" placeholder="高德控制台生成，本地保存" />
           </label>
           <div class="inline-actions">
-            <button id="loadMapButton" type="button">加载 Google 地图</button>
+            <button id="loadMapButton" type="button">加载高德地图</button>
             <button id="clearKeyButton" type="button" class="ghost">清除 Key</button>
           </div>
           <p class="hint" id="mapStatus">未加载 API key 时，可先使用景点列表和本地估算。</p>
@@ -69,7 +73,7 @@
         <div id="map" class="map">
           <div class="map-fallback">
             <strong>新疆地图待加载</strong>
-            <span>输入 Google Maps API key 后显示可交互地图、红色标记和驾车路线。</span>
+            <span>输入高德地图 Key 后显示可交互地图、彩色小点和驾车路线。</span>
           </div>
         </div>
 
@@ -82,7 +86,7 @@
             <div class="trip-actions">
               <button id="reverseRouteButton" type="button" class="ghost">反向</button>
               <button id="clearRouteButton" type="button" class="ghost">清空</button>
-              <a id="openGoogleMaps" class="button-link disabled" target="_blank" rel="noreferrer">打开导航</a>
+              <a id="openAmap" class="button-link disabled" target="_blank" rel="noreferrer">打开高德导航</a>
             </div>
           </div>
           <div class="stats" id="routeStats">

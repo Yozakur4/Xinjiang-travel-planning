@@ -1,18 +1,19 @@
 import {
-  buildGoogleMapsDirectionsUrl,
+  buildAmapDirectionsUrl,
   createFixedRouteState,
   estimateRouteTotals,
   formatHours,
-  getCategoryMarkerIcon,
   reorderStopIds,
   splitStopsForDirections,
+  toGcj02,
   toggleFixedRoute,
 } from "./planner-utils.mjs";
 import { attractions, presetRoutes } from "./planner-data.mjs";
 
 const STORAGE_KEY = "xinjiang-road-trip-plan";
-const API_KEY_STORAGE = "xinjiang-google-maps-key";
-const fallbackCenter = { lat: 42.9, lng: 84.8 };
+const AMAP_KEY_STORAGE = "xinjiang-amap-key";
+const AMAP_SECURITY_STORAGE = "xinjiang-amap-security-code";
+const fallbackCenter = [84.8, 42.9];
 
 const state = {
   activeFilter: "全部",
@@ -21,18 +22,21 @@ const state = {
   map: null,
   markers: new Map(),
   infoWindow: null,
-  directionsService: null,
-  currentRouteRenderers: [],
+  currentRouteLines: [],
   currentRouteRequestId: 0,
   fixedRouteVisibility: createFixedRouteState(presetRoutes.map((route) => route.id)),
   fixedRouteLayers: new Map(),
 };
 
 const byId = new Map(attractions.map((item) => [item.id, item]));
-const regions = ["全部", ...Array.from(new Set(attractions.map((item) => item.region.split("/")[0])))];
+const regions = [
+  "全部",
+  ...Array.from(new Set(attractions.map((item) => item.region.split("/")[0]))),
+];
 
 const elements = {
   apiKeyInput: document.querySelector("#apiKeyInput"),
+  securityCodeInput: document.querySelector("#securityCodeInput"),
   loadMapButton: document.querySelector("#loadMapButton"),
   clearKeyButton: document.querySelector("#clearKeyButton"),
   mapStatus: document.querySelector("#mapStatus"),
@@ -48,14 +52,16 @@ const elements = {
   routeStats: document.querySelector("#routeStats"),
   reverseRouteButton: document.querySelector("#reverseRouteButton"),
   clearRouteButton: document.querySelector("#clearRouteButton"),
-  openGoogleMaps: document.querySelector("#openGoogleMaps"),
+  openAmap: document.querySelector("#openAmap"),
 };
 
 window.initXinjiangMap = initMap;
 
-elements.apiKeyInput.value = localStorage.getItem(API_KEY_STORAGE) || "";
+elements.apiKeyInput.value = localStorage.getItem(AMAP_KEY_STORAGE) || "";
+elements.securityCodeInput.value =
+  localStorage.getItem(AMAP_SECURITY_STORAGE) || "";
 elements.loadMapButton.addEventListener("click", loadMapFromInput);
-elements.clearKeyButton.addEventListener("click", clearApiKey);
+elements.clearKeyButton.addEventListener("click", clearMapCredentials);
 elements.fitMapButton.addEventListener("click", fitAllMarkers);
 elements.searchInput.addEventListener("input", (event) => {
   state.query = event.target.value.trim();
@@ -77,7 +83,7 @@ renderPresetRoutes();
 renderAttractions();
 updatePlanner();
 
-if (elements.apiKeyInput.value) {
+if (elements.apiKeyInput.value && elements.securityCodeInput.value) {
   loadMapFromInput();
 }
 
@@ -96,63 +102,70 @@ function persistStops() {
 
 function loadMapFromInput() {
   const key = elements.apiKeyInput.value.trim();
-  if (!key) {
-    elements.mapStatus.textContent = "请先输入 Google Maps API key。";
+  const securityCode = elements.securityCodeInput.value.trim();
+  if (!key || !securityCode) {
+    elements.mapStatus.textContent = "请先输入高德地图 Key 和安全密钥。";
     return;
   }
 
-  localStorage.setItem(API_KEY_STORAGE, key);
-  if (window.google?.maps) {
+  localStorage.setItem(AMAP_KEY_STORAGE, key);
+  localStorage.setItem(AMAP_SECURITY_STORAGE, securityCode);
+  window._AMapSecurityConfig = { securityJsCode: securityCode };
+
+  if (window.AMap) {
     initMap();
     return;
   }
 
-  elements.mapStatus.textContent = "正在加载 Google 地图...";
+  elements.mapStatus.textContent = "正在加载高德地图...";
   const script = document.createElement("script");
-  script.src = `https://maps.googleapis.com/maps/api/js?key=${encodeURIComponent(
+  script.src = `https://webapi.amap.com/maps?v=2.0&key=${encodeURIComponent(
     key,
-  )}&callback=initXinjiangMap&language=zh-CN&region=CN`;
+  )}&plugin=AMap.Driving&callback=initXinjiangMap`;
   script.async = true;
   script.onerror = () => {
-    elements.mapStatus.textContent = "Google 地图加载失败，请检查 API key、网络或浏览器限制。";
+    elements.mapStatus.textContent =
+      "高德地图加载失败，请检查 Key、安全密钥、网络或浏览器限制。";
   };
   document.head.append(script);
 }
 
-function clearApiKey() {
-  localStorage.removeItem(API_KEY_STORAGE);
+function clearMapCredentials() {
+  localStorage.removeItem(AMAP_KEY_STORAGE);
+  localStorage.removeItem(AMAP_SECURITY_STORAGE);
   elements.apiKeyInput.value = "";
-  elements.mapStatus.textContent = "API key 已清除。刷新页面后会回到本地估算模式。";
+  elements.securityCodeInput.value = "";
+  elements.mapStatus.textContent = "高德 Key 和安全密钥已清除。";
 }
 
 function initMap() {
-  state.map = new google.maps.Map(document.querySelector("#map"), {
+  state.map = new AMap.Map("map", {
     center: fallbackCenter,
-    zoom: 5.2,
-    mapTypeControl: false,
-    streetViewControl: false,
-    fullscreenControl: true,
-    gestureHandling: "greedy",
+    zoom: 5,
+    viewMode: "2D",
+    mapStyle: "amap://styles/normal",
   });
-  state.infoWindow = new google.maps.InfoWindow();
-  state.directionsService = new google.maps.DirectionsService();
+  state.infoWindow = new AMap.InfoWindow({
+    offset: new AMap.Pixel(0, -10),
+  });
 
   attractions.forEach((attraction) => {
-    const marker = new google.maps.Marker({
-      position: { lat: attraction.lat, lng: attraction.lng },
-      map: state.map,
+    const marker = new AMap.Marker({
+      position: amapPoint(attraction),
       title: attraction.name,
-      icon: getCategoryMarkerIcon(attraction.category, google.maps.SymbolPath.CIRCLE),
+      content: `<span class="amap-dot ${attraction.category}" aria-label="${attraction.name}"></span>`,
+      offset: new AMap.Pixel(-5, -5),
     });
-    marker.addListener("mouseover", () => showInfo(attraction, marker));
-    marker.addListener("click", () => {
+    marker.on("mouseover", () => showInfo(attraction, marker));
+    marker.on("click", () => {
       addStop(attraction.id);
       showInfo(attraction, marker);
     });
     state.markers.set(attraction.id, marker);
   });
 
-  elements.mapStatus.textContent = "地图已加载。点击彩色小点可加入路线。";
+  state.map.add(Array.from(state.markers.values()));
+  elements.mapStatus.textContent = "高德地图已加载。点击彩色小点可加入路线。";
   fitAllMarkers();
   renderFixedRoutes();
   updatePlanner();
@@ -161,21 +174,19 @@ function initMap() {
 function showInfo(attraction, marker) {
   if (!state.infoWindow) return;
   state.infoWindow.setContent(`
-    <div style="max-width:240px">
+    <div class="info-window">
       <strong>${attraction.name}</strong>
-      <p style="margin:6px 0;color:#556070">${attraction.summary}</p>
+      <p>${attraction.summary}</p>
       <small>${attraction.region} · ${attraction.type} · ${attraction.stay}</small>
       <br><small>推荐分 ${attraction.score}/10 · ${attraction.ratingBasis}</small>
     </div>
   `);
-  state.infoWindow.open({ anchor: marker, map: state.map });
+  state.infoWindow.open(state.map, marker.getPosition());
 }
 
 function fitAllMarkers() {
-  if (!state.map || !window.google?.maps) return;
-  const bounds = new google.maps.LatLngBounds();
-  attractions.forEach((item) => bounds.extend({ lat: item.lat, lng: item.lng }));
-  state.map.fitBounds(bounds, 48);
+  if (!state.map || !window.AMap) return;
+  state.map.setFitView(Array.from(state.markers.values()), false, [48, 48, 48, 48]);
 }
 
 function renderFilters() {
@@ -274,7 +285,7 @@ function renderAttractions() {
 }
 
 function renderFixedRoutes() {
-  if (!state.map || !window.google?.maps) return;
+  if (!state.map || !window.AMap) return;
 
   presetRoutes.forEach((route) => {
     if (!state.fixedRouteVisibility[route.id]) {
@@ -294,18 +305,20 @@ function renderFixedRoutes() {
 
 async function drawFixedRoute(route, layer) {
   layer.status = "loading";
-  elements.mapStatus.textContent = `正在用 Google 导航绘制「${route.name}」...`;
+  elements.mapStatus.textContent = `正在用高德驾车规划绘制「${route.name}」...`;
   const stops = route.stopIds.map((id) => byId.get(id)).filter(Boolean);
 
   try {
-    const responses = await requestRoadRoute(stops);
-    layer.renderers = responses.map((response) => makeDirectionsRenderer(route.color, 4, 0.72, response));
+    const results = await requestRoadRoute(stops);
+    layer.lines = results.map((result) =>
+      makeRoadPolyline(extractAmapPath(result), route.color, 4, 0.72),
+    );
     layer.status = "ready";
     if (!state.fixedRouteVisibility[route.id]) setLayerMap(layer, null);
-    elements.mapStatus.textContent = `「${route.name}」已按公路路径显示。`;
+    elements.mapStatus.textContent = `「${route.name}」已按高德公路路径显示。`;
   } catch (error) {
     layer.status = "error";
-    elements.mapStatus.textContent = `「${route.name}」无法显示公路路线：${error.message}。请确认 API key 已启用 Maps JavaScript API 和路线服务。`;
+    elements.mapStatus.textContent = `「${route.name}」无法显示公路路线：${error.message}。请确认高德 Key 已启用 JS API 和驾车路线规划。`;
   }
 }
 
@@ -313,7 +326,7 @@ function ensureFixedRouteLayer(route) {
   if (!state.fixedRouteLayers.has(route.id)) {
     state.fixedRouteLayers.set(route.id, {
       status: "idle",
-      renderers: [],
+      lines: [],
     });
   }
   return state.fixedRouteLayers.get(route.id);
@@ -326,7 +339,7 @@ function hideFixedRoute(routeId) {
 }
 
 function setLayerMap(layer, map) {
-  layer.renderers.forEach((renderer) => renderer.setMap(map));
+  layer.lines.forEach((line) => line.setMap(map));
 }
 
 function addStop(id) {
@@ -337,7 +350,7 @@ function addStop(id) {
 
 function updatePlanner() {
   renderSelectedStops();
-  updateDirections();
+  updateDrivingRoute();
 }
 
 function selectedStops() {
@@ -379,11 +392,11 @@ function renderSelectedStops() {
   });
 }
 
-function updateDirections() {
+function updateDrivingRoute() {
   const stops = selectedStops();
-  const navigationUrl = buildGoogleMapsDirectionsUrl(stops);
-  elements.openGoogleMaps.href = navigationUrl;
-  elements.openGoogleMaps.classList.toggle("disabled", stops.length < 2);
+  const navigationUrl = buildAmapDirectionsUrl(stops);
+  elements.openAmap.href = navigationUrl;
+  elements.openAmap.classList.toggle("disabled", stops.length < 2);
 
   if (stops.length < 2) {
     updateStats({ distanceKm: 0, durationHours: 0, legs: [] }, stops.length);
@@ -391,7 +404,7 @@ function updateDirections() {
     return;
   }
 
-  if (!state.directionsService) {
+  if (!state.map || !window.AMap) {
     clearCurrentRouteMap();
     updateStats(estimateRouteTotals(stops), stops.length, true);
     return;
@@ -402,89 +415,85 @@ function updateDirections() {
 
 async function updateCurrentRoadRoute(stops) {
   const requestId = (state.currentRouteRequestId += 1);
-  elements.mapStatus.textContent = "正在用 Google 导航计算当前路线...";
+  elements.mapStatus.textContent = "正在用高德驾车规划计算当前路线...";
 
   try {
-    const responses = await requestRoadRoute(stops);
+    const results = await requestRoadRoute(stops);
     if (requestId !== state.currentRouteRequestId) return;
     clearCurrentRouteMap();
-    state.currentRouteRenderers = responses.map((response) =>
-      makeDirectionsRenderer("#0e6c68", 5, 0.86, response),
+    state.currentRouteLines = results.map((result) =>
+      makeRoadPolyline(extractAmapPath(result), "#0e6c68", 5, 0.86),
     );
-    updateStats(getDirectionsTotals(responses), stops.length);
-    elements.mapStatus.textContent = "已使用 Google 导航按公路绘制当前路线。";
+    updateStats(getAmapRouteTotals(results), stops.length);
+    elements.mapStatus.textContent = "已使用高德驾车规划按公路绘制当前路线。";
   } catch (error) {
     if (requestId !== state.currentRouteRequestId) return;
     clearCurrentRouteMap();
     updateStats(estimateRouteTotals(stops), stops.length, true);
-    elements.mapStatus.textContent = `无法显示公路路线：${error.message}。下方仅保留本地里程和时间估算，不再绘制直线。`;
+    elements.mapStatus.textContent = `无法显示公路路线：${error.message}。下方仅保留本地里程和时间估算，不绘制直线。`;
   }
 }
 
 function requestRoadRoute(stops) {
-  const segments = splitStopsForDirections(stops);
-  return Promise.all(segments.map(requestDirectionsSegment));
+  const segments = splitStopsForDirections(stops, 14);
+  return Promise.all(segments.map(requestDrivingSegment));
 }
 
-function requestDirectionsSegment(stops) {
-  const origin = point(stops[0]);
-  const destination = point(stops[stops.length - 1]);
-  const waypoints = stops.slice(1, -1).map((stop) => ({
-    location: point(stop),
-    stopover: true,
-  }));
+function requestDrivingSegment(stops) {
+  const driving = new AMap.Driving({
+    policy: AMap.DrivingPolicy.LEAST_TIME,
+  });
+  const start = amapPoint(stops[0]);
+  const end = amapPoint(stops[stops.length - 1]);
+  const waypoints = stops.slice(1, -1).map(amapPoint);
 
   return new Promise((resolve, reject) => {
-    state.directionsService.route(
-      {
-        origin,
-        destination,
-        waypoints,
-        travelMode: google.maps.TravelMode.DRIVING,
-        optimizeWaypoints: false,
-      },
-      (response, status) => {
-        if (status === "OK" && response) {
-          resolve(response);
-          return;
-        }
-        reject(new Error(status));
-      },
-    );
+    driving.search(start, end, { waypoints }, (status, result) => {
+      if (status === "complete" && result?.routes?.length) {
+        resolve(result);
+        return;
+      }
+      reject(new Error(result?.info || status || "AMap driving route failed"));
+    });
   });
 }
 
-function makeDirectionsRenderer(color, weight, opacity, response) {
-  const renderer = new google.maps.DirectionsRenderer({
-    suppressMarkers: true,
-    preserveViewport: true,
-    polylineOptions: {
-      strokeColor: color,
-      strokeWeight: weight,
-      strokeOpacity: opacity,
-    },
+function makeRoadPolyline(path, color, weight, opacity) {
+  const line = new AMap.Polyline({
+    path,
+    strokeColor: color,
+    strokeWeight: weight,
+    strokeOpacity: opacity,
+    showDir: true,
+    lineJoin: "round",
+    lineCap: "round",
   });
-  renderer.setMap(state.map);
-  renderer.setDirections(response);
-  return renderer;
+  state.map.add(line);
+  return line;
+}
+
+function extractAmapPath(result) {
+  return result.routes
+    .flatMap((route) => route.steps || [])
+    .flatMap((step) => step.path || []);
 }
 
 function clearCurrentRouteMap() {
-  state.currentRouteRenderers.forEach((renderer) => renderer.setMap(null));
-  state.currentRouteRenderers = [];
+  state.currentRouteLines.forEach((line) => state.map?.remove(line));
+  state.currentRouteLines = [];
 }
 
-function getDirectionsTotals(responses) {
-  const googleLegs = responses.flatMap((response) => response.routes[0]?.legs || []);
-  const legs = googleLegs.map((leg) => ({
-    from: leg.start_address.split(",")[0],
-    to: leg.end_address.split(",")[0],
-    distanceKm: Math.round((leg.distance?.value || 0) / 1000),
-    durationText: leg.duration?.text || "",
+function getAmapRouteTotals(results) {
+  const routes = results.map((result) => result.routes[0]).filter(Boolean);
+  const legs = routes.map((route) => ({
+    from: "路段起点",
+    to: "路段终点",
+    distanceKm: Math.round(Number(route.distance || 0) / 1000),
+    durationText: formatSeconds(Number(route.time || 0)),
   }));
   const distanceKm = legs.reduce((total, leg) => total + leg.distanceKm, 0);
-  const durationSeconds = googleLegs.reduce(
-    (total, leg) => total + (leg.duration?.value || 0),
+  const durationSeconds = routes.reduce(
+    (total, route) => total + Number(route.time || 0),
     0,
   );
   return {
@@ -494,8 +503,13 @@ function getDirectionsTotals(responses) {
   };
 }
 
-function point(stop) {
-  return { lat: stop.lat, lng: stop.lng };
+function amapPoint(stop) {
+  const point = toGcj02(stop);
+  return [point.lng, point.lat];
+}
+
+function formatSeconds(seconds) {
+  return formatHours(seconds / 3600);
 }
 
 function updateStats(totals, stopCount, estimated = false) {
@@ -509,9 +523,9 @@ function updateStats(totals, stopCount, estimated = false) {
   elements.legList.innerHTML = totals.legs.length
     ? totals.legs
         .map(
-          (leg) => `
+          (leg, index) => `
         <div class="leg-row">
-          <span>${leg.from} → ${leg.to}</span>
+          <span>${leg.from || `路段 ${index + 1}`} → ${leg.to || `路段 ${index + 2}`}</span>
           <strong>${leg.distanceKm} km · ${leg.durationText || formatHours(leg.durationHours)}</strong>
         </div>
       `,
